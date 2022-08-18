@@ -63,6 +63,11 @@ int main(int argc, char **argv)
     double t_track = 0.f;
 
     cv::Mat im;
+
+    ofstream f;
+    f.open("testFullTrajectory.txt");
+    f.fixed;
+
     for(int ni=0; ni<nImages; ni++)
     {
         // Read image from file
@@ -105,7 +110,13 @@ int main(int argc, char **argv)
 #endif
 
         // Pass the image to the SLAM system
-        SLAM.TrackMonocular(im,tframe,vector<ORB_SLAM3::IMU::Point>(), vstrImageFilenames[ni]);
+        Sophus::SE3f Tcw = SLAM.TrackMonocular(im,tframe,vector<ORB_SLAM3::IMU::Point>(), vstrImageFilenames[ni]);
+
+        Sophus::SE3f Twc = Tcw.inverse();
+        Eigen::Quaternionf q = Twc.unit_quaternion();
+        Eigen::Vector3f t = Twc.translation();
+        f << setprecision(6) << tframe << setprecision(7) << " " << t(0) << " " << t(1) << " " << t(2)
+          << " " << q.x() << " " << q.y() << " " << q.z() << " " << q.w() << endl;
 
 #ifdef COMPILEDWITHC11
         std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
@@ -132,6 +143,7 @@ int main(int argc, char **argv)
         if(ttrack<T)
             usleep((T-ttrack)*1e6);
     }
+    f.close();
 
     // Stop all threads
     SLAM.Shutdown();
@@ -148,7 +160,7 @@ int main(int argc, char **argv)
     cout << "mean tracking time: " << totaltime/nImages << endl;
 
     // Save camera trajectory
-    SLAM.SaveKeyFrameTrajectoryTUM("KeyFrameTrajectory.txt");    
+    SLAM.SaveKeyFrameTrajectoryTUM("KeyFrameTrajectory.txt");
 
     return 0;
 }
