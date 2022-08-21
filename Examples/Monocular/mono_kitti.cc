@@ -65,7 +65,7 @@ int main(int argc, char **argv)
     cv::Mat im;
 
     ofstream f;
-    f.open("testFullTrajectory.txt");
+    f.open("FullTrajectory.txt");
     f.fixed;
 
     for(int ni=0; ni<nImages; ni++)
