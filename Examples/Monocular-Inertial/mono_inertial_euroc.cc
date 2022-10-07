@@ -32,7 +32,7 @@
 using namespace std;
 
 void LoadImages(const string &strImagePath, const string &strPathTimes,
-                vector<string> &vstrImages, vector<double> &vTimeStamps);
+                vector<string> &vstrImages, vector<double> &vTimeStamps, string img_type="png");
 
 void LoadIMU(const string &strImuPath, vector<double> &vTimeStamps, vector<cv::Point3f> &vAcc, vector<cv::Point3f> &vGyro);
 
@@ -40,9 +40,9 @@ double ttrack_tot = 0;
 int main(int argc, char *argv[])
 {
 
-    if(argc < 5)
+    if(argc < 6)
     {
-        cerr << endl << "Usage: ./mono_inertial_euroc path_to_vocabulary path_to_settings path_to_sequence_folder_1 path_to_times_file_1 (path_to_image_folder_2 path_to_times_file_2 ... path_to_image_folder_N path_to_times_file_N) " << endl;
+        cerr << endl << "Usage: ./mono_inertial_euroc path_to_vocabulary path_to_settings path_to_sequence_folder_1 path_to_times_file_1 image_type [jpg/png] (path_to_image_folder_2 path_to_times_file_2 ... path_to_image_folder_N path_to_times_file_N) " << endl;
         return 1;
     }
 
@@ -82,11 +82,13 @@ int main(int argc, char *argv[])
         string pathSeq(argv[(2*seq) + 3]);
         string pathTimeStamps(argv[(2*seq) + 4]);
 
-        string pathCam0 = pathSeq + "/mav0/cam0/data";
-        string pathImu = pathSeq + "/mav0/imu0/data.csv";
+        // string pathCam0 = pathSeq + "/mav0/cam0/data";
+        // string pathImu = pathSeq + "/mav0/imu0/data.csv";
+        string pathCam0 = pathSeq + "/image_0";
+        string pathImu = pathSeq + "/imu_data.txt";
 
-        LoadImages(pathCam0, pathTimeStamps, vstrImageFilenames[seq], vTimestampsCam[seq]);
-        cout << "LOADED!" << endl;
+        LoadImages(pathCam0, pathTimeStamps, vstrImageFilenames[seq], vTimestampsCam[seq], argv[5]);
+        cout << "LOADED!" << sizeof(vstrImageFilenames[seq])<< endl;
 
         cout << "Loading IMU for sequence " << seq << "...";
         LoadIMU(pathImu, vTimestampsImu[seq], vAcc[seq], vGyro[seq]);
@@ -122,11 +124,13 @@ int main(int argc, char *argv[])
 
     double t_resize = 0.f;
     double t_track = 0.f;
-
+    ofstream f;
     int proccIm=0;
     for (seq = 0; seq<num_seq; seq++)
     {
-
+        std::string filename = "FullTrajectory_" + std::to_string(seq) + ".txt";
+        f.open(filename);
+        f.fixed;
         // Main loop
         cv::Mat im;
         vector<ORB_SLAM3::IMU::Point> vImuMeas;
@@ -134,6 +138,7 @@ int main(int argc, char *argv[])
         for(int ni=0; ni<nImages[seq]; ni++, proccIm++)
         {
             // Read image from file
+            // im = cv::imread(vstrImageFilenames[seq][ni],cv::IMREAD_GRAYSCALE); //CV_LOAD_IMAGE_UNCHANGED);
             im = cv::imread(vstrImageFilenames[seq][ni],cv::IMREAD_UNCHANGED); //CV_LOAD_IMAGE_UNCHANGED);
 
             double tframe = vTimestampsCam[seq][ni];
@@ -192,7 +197,13 @@ int main(int argc, char *argv[])
 
             // Pass the image to the SLAM system
             // cout << "tframe = " << tframe << endl;
-            SLAM.TrackMonocular(im,tframe,vImuMeas); // TODO change to monocular_inertial
+            Sophus::SE3f Tcw = SLAM.TrackMonocular(im,tframe,vImuMeas); // TODO change to monocular_inertial
+            Sophus::SE3f Twc = Tcw.inverse();
+            // Sophus::SE3f Twc = Tcw;
+            Eigen::Quaternionf q = Twc.unit_quaternion();
+            Eigen::Vector3f t = Twc.translation();
+            f << setprecision(19) << 1e9*tframe << setprecision(7) << " " << t(0) << " " << t(1) << " " << t(2)
+              << " " << q.x() << " " << q.y() << " " << q.z() << " " << q.w() << endl;
 
     #ifdef COMPILEDWITHC11
             std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
@@ -227,6 +238,7 @@ int main(int argc, char *argv[])
 
             SLAM.ChangeDataset();
         }
+        f.close();
     }
 
     // Stop all threads
@@ -242,7 +254,8 @@ int main(int argc, char *argv[])
     }
     else
     {
-        SLAM.SaveTrajectoryEuRoC("CameraTrajectory.txt");
+        SLAM.SaveTrajectoryKITTI("CameraTrajectory.txt");
+        // SLAM.SaveTrajectoryEuRoC("CameraTrajectory.txt");
         SLAM.SaveKeyFrameTrajectoryEuRoC("KeyFrameTrajectory.txt");
     }
 
@@ -250,7 +263,7 @@ int main(int argc, char *argv[])
 }
 
 void LoadImages(const string &strImagePath, const string &strPathTimes,
-                vector<string> &vstrImages, vector<double> &vTimeStamps)
+                vector<string> &vstrImages, vector<double> &vTimeStamps, string img_type)
 {
     ifstream fTimes;
     fTimes.open(strPathTimes.c_str());
@@ -264,7 +277,7 @@ void LoadImages(const string &strImagePath, const string &strPathTimes,
         {
             stringstream ss;
             ss << s;
-            vstrImages.push_back(strImagePath + "/" + ss.str() + ".png");
+            vstrImages.push_back(strImagePath + "/" + ss.str() + "." + img_type);
             double t;
             ss >> t;
             vTimeStamps.push_back(t/1e9);

@@ -28,13 +28,13 @@
 using namespace std;
 
 void LoadImages(const string &strImagePath, const string &strPathTimes,
-                vector<string> &vstrImages, vector<double> &vTimeStamps);
+                vector<string> &vstrImages, vector<double> &vTimeStamps, string img_type="png");
 
 int main(int argc, char **argv)
-{  
-    if(argc < 5)
+{
+    if(argc < 6)
     {
-        cerr << endl << "Usage: ./mono_euroc path_to_vocabulary path_to_settings path_to_sequence_folder_1 path_to_times_file_1 (path_to_image_folder_2 path_to_times_file_2 ... path_to_image_folder_N path_to_times_file_N) (trajectory_file_name)" << endl;
+        cerr << endl << "Usage: ./mono_euroc path_to_vocabulary path_to_settings path_to_sequence_folder_1 path_to_times_file_1 (path_to_image_folder_2 path_to_times_file_2 img_type[png/jpg]... path_to_image_folder_N path_to_times_file_N) (trajectory_file_name)" << endl;
         return 1;
     }
 
@@ -62,7 +62,7 @@ int main(int argc, char **argv)
     for (seq = 0; seq<num_seq; seq++)
     {
         cout << "Loading images for sequence " << seq << "...";
-        LoadImages(string(argv[(2*seq)+3]) + "/mav0/cam0/data", string(argv[(2*seq)+4]), vstrImageFilenames[seq], vTimestampsCam[seq]);
+        LoadImages(string(argv[(2*seq)+3]) + "/image_0", string(argv[(2*seq)+4]), vstrImageFilenames[seq], vTimestampsCam[seq]);
         cout << "LOADED!" << endl;
 
         nImages[seq] = vstrImageFilenames[seq].size();
@@ -80,15 +80,19 @@ int main(int argc, char **argv)
     int fps = 20;
     float dT = 1.f/fps;
     // Create SLAM system. It initializes all system threads and gets ready to process frames.
-    ORB_SLAM3::System SLAM(argv[1],argv[2],ORB_SLAM3::System::MONOCULAR, false);
+    ORB_SLAM3::System SLAM(argv[1],argv[2],ORB_SLAM3::System::MONOCULAR, true);
     float imageScale = SLAM.GetImageScale();
 
     double t_resize = 0.f;
     double t_track = 0.f;
 
+    ofstream f;
     for (seq = 0; seq<num_seq; seq++)
     {
-
+        std::string filename = "FullTrajectory_" + std::to_string(seq) + ".txt";
+        // cout << "filename: " << filename << endl;
+        f.open(filename);
+        f.fixed;
         // Main loop
         cv::Mat im;
         int proccIm = 0;
@@ -137,7 +141,13 @@ int main(int argc, char **argv)
 
             // Pass the image to the SLAM system
             // cout << "tframe = " << tframe << endl;
-            SLAM.TrackMonocular(im,tframe); // TODO change to monocular_inertial
+            // SLAM.TrackMonocular(im,tframe); // TODO change to monocular_inertial
+            Sophus::SE3f Tcw = SLAM.TrackMonocular(im,tframe); // TODO change to monocular_inertial
+            Sophus::SE3f Twc = Tcw.inverse();
+            Eigen::Quaternionf q = Twc.unit_quaternion();
+            Eigen::Vector3f t = Twc.translation();
+            f << setprecision(19) << 1e9*tframe << setprecision(7) << " " << t(0) << " " << t(1) << " " << t(2)
+              << " " << q.x() << " " << q.y() << " " << q.z() << " " << q.w() << endl;
 
     #ifdef COMPILEDWITHC11
             std::chrono::steady_clock::time_point t2 = std::chrono::steady_clock::now();
@@ -181,7 +191,7 @@ int main(int argc, char **argv)
 
             SLAM.ChangeDataset();
         }
-
+        f.close();
     }
     // Stop all threads
     SLAM.Shutdown();
@@ -204,7 +214,7 @@ int main(int argc, char **argv)
 }
 
 void LoadImages(const string &strImagePath, const string &strPathTimes,
-                vector<string> &vstrImages, vector<double> &vTimeStamps)
+                vector<string> &vstrImages, vector<double> &vTimeStamps, string img_type)
 {
     ifstream fTimes;
     fTimes.open(strPathTimes.c_str());
@@ -218,11 +228,10 @@ void LoadImages(const string &strImagePath, const string &strPathTimes,
         {
             stringstream ss;
             ss << s;
-            vstrImages.push_back(strImagePath + "/" + ss.str() + ".png");
+            vstrImages.push_back(strImagePath + "/" + ss.str() + "." + img_type);
             double t;
             ss >> t;
             vTimeStamps.push_back(t*1e-9);
-
         }
     }
 }
