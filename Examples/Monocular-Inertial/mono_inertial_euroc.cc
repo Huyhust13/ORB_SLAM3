@@ -254,8 +254,8 @@ int main(int argc, char *argv[])
     }
     else
     {
-        SLAM.SaveTrajectoryKITTI("CameraTrajectory.txt");
-        // SLAM.SaveTrajectoryEuRoC("CameraTrajectory.txt");
+        // SLAM.SaveTrajectoryKITTI("CameraTrajectory.txt");
+        SLAM.SaveTrajectoryEuRoC("CameraTrajectory.txt");
         SLAM.SaveKeyFrameTrajectoryEuRoC("KeyFrameTrajectory.txt");
     }
 
