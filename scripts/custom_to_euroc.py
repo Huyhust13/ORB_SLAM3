@@ -9,6 +9,7 @@ from scipy.spatial.transform import Rotation as R
 parser = argparse.ArgumentParser(description='demo')
 parser.add_argument('--src', type=str, default='', help='dataset input', required=True)
 parser.add_argument('--dest', type=str, default='', help='dataset output', required=True)
+parser.add_argument('--orbslam3', type=str, default='', help='ORB_SLAM3 folder path', required=True)
 parser.add_argument('--remove_dest', type=bool, default=False, help='remove dest_folder first')
 args = parser.parse_args()
 
@@ -16,6 +17,7 @@ args = parser.parse_args()
 # dest_folder = "/mnt/sda1/upwork_data/Nader-VO/vo_data_mimic_tum"
 src_folder = args.src
 dest_folder = args.dest
+orb_folder = args.orbslam3
 
 
 if os.path.exists(dest_folder) and args.remove_dest:
@@ -96,7 +98,7 @@ from pathlib import Path
 def convert_config():
     calib_file_name = os.path.join(src_folder, 'intrinsics_rectified', "flir_bfc_img.txt")
     # calib_file_name = os.path.join(src_folder, 'intrinsics', "flir_bfc_calib-results.txt")
-    cam_config_sample = os.path.join(src_folder, "EuRoC.yaml")
+    cam_config_sample = os.path.join(orb_folder, "Examples/Monocular-Inertial/EuRoC.yaml")
     dest_cam_config_file = os.path.join(dest_folder, "cam_config.yaml")
     calib_file = open(calib_file_name, 'r')
     calib_lines = calib_file.readlines()
